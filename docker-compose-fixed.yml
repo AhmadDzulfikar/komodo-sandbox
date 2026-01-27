@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: komodo_dev
+      # Tambahan environment untuk debugging
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=trust"
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Mount init script untuk setup database
+      - ./docker-init:/docker-entrypoint-initdb.d
+    # Tambahan untuk debugging
+    command: |
+      postgres 
+      -c log_statement=all 
+      -c log_connections=on 
+      -c log_disconnections=on
+      -c log_checkpoints=on
+      -c log_min_messages=info
+      -c shared_preload_libraries=''
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev -d komodo_dev"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  pgdata:

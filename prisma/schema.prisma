@@ -1,14 +1,165 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum BoatImageType {
+  MAIN_DISPLAY
+  EXTERIOR
+  EXTERIOR_2
+  DINING_ROOM
+  DINING_ROOM_2
+  JACUZZI
+  ROOFTOP_DECK
+  SHARING_TOILET
+  RELAX_AREA
+  RELAX_AREA_2
+  RELAX_AREA_3
+  OTHER_1
+  OTHER_2
+  OTHER_3
+  OTHER_4
+}
+
+enum CabinImageType {
+  MAIN_DISPLAY
+  BEDROOM
+  BATHROOM
+  BALCONY
+  JACUZZI
+  BATHTUB
+  OTHER_1
+  OTHER_2
+  OTHER_3
+  OTHER_4
+}
+
+model Boat {
+  /// Dari spreadsheet: boat_id (pakai sebagai primary key supaya gampang upsert)
+  boatId String @id @map("boat_id")
+
+  boatName        String  @map("boat_name")
+  description     String? @db.Text
+  category        String?
+  operator        String?
+  operatorId      String? @map("operator_id")
+
+  trip            String?
+  destinations    String?
+  type            String?
+
+  baseCapacity        Int? @map("base_capacity")
+  extraPayCapacity    Int? @map("extra_pay_capacity")
+  totalCapacity       Int? @map("total_capacity")
+
+  /// Spreadsheet kamu punya beberapa versi harga
+  baseBookingPriceRaw      Decimal? @db.Decimal(12, 2) @map("_base_booking_price")
+  additionalPaxPriceRaw    Decimal? @db.Decimal(12, 2) @map("_additional_pax_price")
+  baseBookingPrice         Decimal? @db.Decimal(12, 2) @map("base_booking_price")
+  additionalPaxPrice       Decimal? @db.Decimal(12, 2) @map("additional_pax_price")
+
+  margin       Decimal? @db.Decimal(10, 4) @map("_margin")
+  coefficient  Decimal? @db.Decimal(10, 4) @map("coeficient")
+
+  /// Dropdown list: simpan sebagai array string (n8n bisa split dari comma)
+  boatDisplayFacilities String[] @map("boat_display_facilities")
+
+  unlimitedFreeWifi Boolean @default(false) @map("unlimited_free_wifi")
+  starlinkWifi       Boolean @default(false) @map("starlink_wifi")
+  jacuzzi            Boolean @default(false)
+  paddleBoard        Boolean @default(false) @map("paddle_board")
+  canoe              Boolean @default(false)
+  kayak              Boolean @default(false)
+  fishingGear        Boolean @default(false) @map("fishing_gear")
+  snorkelingAvail    Boolean @default(false) @map("snorkeling_avail")
+  divingAvail        Boolean @default(false) @map("diving_avail")
+  phinisi            Boolean @default(false)
+
+  boatDescription String? @db.Text @map("boat_description")
+
+  cabins Cabin[]
+  images BoatImage[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("boats")
+}
+
+model Cabin {
+  cabinId String @id @map("cabin_id")
+
+  cabinName    String  @map("cabin_name")
+  cabinNameApi String? @map("cabin_name_api")
+
+  description       String? @db.Text
+  cabinType         String? @map("cabin_type")
+  operator          String?
+  cabinDescription  String? @db.Text @map("cabin_description")
+
+  baseCapacity     Int? @map("base_capacity")
+  extraPayCapacity Int? @map("extra_pay_capacity")
+  totalCapacity    Int? @map("total_capacity")
+
+  baseBookingPrice     Decimal? @db.Decimal(12, 2) @map("base_booking_price")
+  additionalPaxPrice   Decimal? @db.Decimal(12, 2) @map("additional_pax_price")
+  margin              Decimal? @db.Decimal(10, 4)
+  coefficient         Decimal? @db.Decimal(10, 4)
+  price               Decimal? @db.Decimal(12, 2)
+
+  cabinDisplayFacilities Boolean @default(false) @map("cabin_display_facilities")
+  seaview                Boolean @default(false)
+  balcony                Boolean @default(false)
+  privateJacuzzi         Boolean @default(false) @map("private_jacuzzi")
+  bathtub                Boolean @default(false)
+  largeBed               Boolean @default(false) @map("large_bed")
+
+  /// Relasi ke Boat (pakai boat_id dari sheet)
+  boatId String @map("boat_id")
+  boat   Boat   @relation(fields: [boatId], references: [boatId], onDelete: Cascade)
+
+  images CabinImage[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([boatId])
+  @@map("cabins")
+}
+
+model BoatImage {
+  id     String @id @default(uuid())
+  boatId String @map("boat_id")
+  boat   Boat   @relation(fields: [boatId], references: [boatId], onDelete: Cascade)
+
+  type     BoatImageType
+  driveUrl String? @db.Text @map("drive_url")   /// dari spreadsheet
+  publicUrl String? @db.Text @map("public_url") /// hasil upload storage/CDN
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([boatId, type])
+  @@index([boatId])
+  @@map("boat_images")
+}
+
+model CabinImage {
+  id      String @id @default(uuid())
+  cabinId String @map("cabin_id")
+  cabin   Cabin  @relation(fields: [cabinId], references: [cabinId], onDelete: Cascade)
+
+  type      CabinImageType
+  driveUrl  String? @db.Text @map("drive_url")
+  publicUrl String? @db.Text @map("public_url")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([cabinId, type])
+  @@index([cabinId])
+  @@map("cabin_images")
 }
