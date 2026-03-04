@@ -1,0 +1,104 @@
+diff --git a/app/boats/[boatId]/page.tsx b/app/boats/[boatId]/page.tsx
+index b7a7f80..363db4e 100644
+--- a/app/boats/[boatId]/page.tsx
++++ b/app/boats/[boatId]/page.tsx
+@@ -8,26 +8,77 @@ export default async function BoatDetailPage({ params }: { params: Promise<{ boa
+     const resolvedParams = await params;
+     const { boatId } = resolvedParams;
+ 
++    const isPrismaTimeout = (error: unknown) => {
++        if (!error || typeof error !== 'object') return false;
++        const code = (error as { code?: string }).code;
++        const message = String((error as { message?: string }).message ?? '');
++        return code === 'P1008' || message.toLowerCase().includes('timed out');
++    };
++
+     // 1. Fetch data dari database
+-    const boat = await prisma.boat.findUnique({
+-        where: { boatId: boatId },
+-        include: {
+-            images: true, // Semua gambar kapal
+-            cabins: {
+-                include: {
+-                    images: true, // Ambil gambar cabin juga untuk ditampilkan di card kamar
++    let boat: Awaited<ReturnType<typeof prisma.boat.findUnique>>;
++    try {
++        boat = await prisma.boat.findUnique({
++            where: { boatId: boatId },
++            include: {
++                images: true, // Semua gambar kapal
++                cabins: {
++                    include: {
++                        images: true, // Ambil gambar cabin juga untuk ditampilkan di card kamar
++                    },
+                 },
+             },
+-        },
+-    });
++        });
++    } catch (error) {
++        console.error('BoatDetailPage database error:', { boatId, error });
++
++        if (isPrismaTimeout(error)) {
++            return (
++                <main className="max-w-3xl mx-auto p-6 md:p-12 mt-16">
++                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 md:p-8">
++                        <h1 className="text-2xl md:text-3xl font-bold text-amber-900 mb-3">Database timeout</h1>
++                        <p className="text-amber-800 mb-6">
++                            Koneksi ke database sedang lambat atau tidak terjangkau. Silakan refresh beberapa saat lagi.
++                        </p>
++                        <div className="flex gap-3">
++                            <Link href="/" className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2 text-white">
++                                Kembali ke Home
++                            </Link>
++                            <Link href={`/boats/${boatId}`} className="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-slate-700">
++                                Coba Lagi
++                            </Link>
++                        </div>
++                    </div>
++                </main>
++            );
++        }
++
++        throw error;
++    }
+ 
+     // Jika boat tidak ada di database, lempar ke halaman 404 Not Found
+     if (!boat) {
+         notFound();
+     }
+ 
++    console.log("DEBUG BOAT IMAGES FOR", boatId, ":", boat.images);
++
++    // Helper untuk membetulkan typo URL pada =boats
++    const patchUrl = (url?: string | null) => {
++        if (!url) return undefined;
++        return url.replace('12seasalliance.uk/boats/', '12seasalliance.uk/=boats/');
++    };
++
+     // 2. Filter gambar
+-    const mainImage = boat.images.find(img => img.type === 'MAIN_DISPLAY')?.publicUrl;
++    const findPublicOrDrive = (type: string) => {
++        const img = boat.images.find(img => img.type === type);
++        return patchUrl(img?.publicUrl) || img?.driveUrl;
++    };
++
++    const mainImage = findPublicOrDrive('MAIN_DISPLAY')
++        || findPublicOrDrive('EXTERIOR')
++        || patchUrl(boat.images[0]?.publicUrl)
++        || boat.images[0]?.driveUrl;
+ 
+     return (
+         <main className="min-h-screen pb-20 bg-white text-gray-900">
+@@ -118,7 +169,10 @@ export default async function BoatDetailPage({ params }: { params: Promise<{ boa
+                     {boat.cabins.length > 0 ? (
+                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+                             {boat.cabins.map((cabin) => {
+-                                const cabinImg = cabin.images.find(img => img.type === 'MAIN_DISPLAY')?.publicUrl;
++                                const cabinImg = patchUrl(cabin.images.find(img => img.type === 'MAIN_DISPLAY')?.publicUrl)
++                                    || cabin.images.find(img => img.type === 'MAIN_DISPLAY')?.driveUrl
++                                    || patchUrl(cabin.images[0]?.publicUrl)
++                                    || cabin.images[0]?.driveUrl;
+                                 return (
+                                     <Link href={`/cabins/${cabin.cabinId}`} key={cabin.cabinId} className="group">
+                                         <div className="border border-slate-200 rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300 bg-white group-hover:-translate-y-1">
