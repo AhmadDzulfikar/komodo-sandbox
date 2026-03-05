@@ -5,8 +5,6 @@ services:
       POSTGRES_USER: dev
       POSTGRES_PASSWORD: devpass
       POSTGRES_DB: komodo_dev
-      # Host authentication method - trust untuk semua koneksi (development only!)
-      POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "5433:5432"  # Pakai port 5433 karena 5432 sudah dipakai PostgreSQL lokal
     volumes:

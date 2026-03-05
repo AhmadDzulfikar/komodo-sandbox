@@ -25,4 +25,4 @@ Write-Host "`n=== DOCKER CONTAINER STATUS ===" -ForegroundColor Green
 docker ps --filter "name=db"
 
 Write-Host "`n=== TEST CONNECTION DENGAN NODE.JS ===" -ForegroundColor Green
-node debug-db.js
+node scripts/debug/debug-db.js

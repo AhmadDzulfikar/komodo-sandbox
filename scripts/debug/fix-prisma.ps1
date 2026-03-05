@@ -17,12 +17,12 @@ Write-Host "=== SOLUSI 1: UPDATE PG_HBA.CONF ===" -ForegroundColor Green
 Write-Host "1. Backup pg_hba.conf..." -ForegroundColor Yellow
 docker exec komodo-sandbox-web-db-1 cp /var/lib/postgresql/data/pg_hba.conf /var/lib/postgresql/data/pg_hba.conf.backup
 
-# Step 2: Update pg_hba.conf untuk allow trust authentication untuk localhost
+# Step 2: Update pg_hba.conf untuk enforce SCRAM authentication
 Write-Host "2. Update pg_hba.conf untuk development..." -ForegroundColor Yellow
-docker exec komodo-sandbox-web-db-1 bash -c "echo '# Development: Trust localhost connections
-host    all             all             172.17.0.0/16           trust
-host    all             all             10.0.0.0/8              trust
-host    all             all             192.168.0.0/16          trust' >> /var/lib/postgresql/data/pg_hba.conf"
+docker exec komodo-sandbox-web-db-1 bash -c "echo '# Development: enforce SCRAM for docker networks
+host    all             all             172.17.0.0/16           scram-sha-256
+host    all             all             10.0.0.0/8              scram-sha-256
+host    all             all             192.168.0.0/16          scram-sha-256' >> /var/lib/postgresql/data/pg_hba.conf"
 
 # Step 3: Reload PostgreSQL configuration
 Write-Host "3. Reload PostgreSQL configuration..." -ForegroundColor Yellow
@@ -84,7 +84,7 @@ Write-Host "Init script dibuat di docker-init/init-db.sql" -ForegroundColor Gree
 Write-Host "`n=== COMMANDS UNTUK TEST ===" -ForegroundColor Cyan
 
 Write-Host "1. Test koneksi Node.js:" -ForegroundColor Yellow
-Write-Host "   node debug-db.js" -ForegroundColor White
+Write-Host "   node scripts/debug/debug-db.js" -ForegroundColor White
 
 Write-Host "`n2. Test Prisma generate:" -ForegroundColor Yellow  
 Write-Host "   npx prisma generate" -ForegroundColor White
@@ -111,14 +111,14 @@ switch ($choice) {
         Write-Host "Menjalankan Solusi 1..." -ForegroundColor Green
         # Jalankan commands solusi 1 di atas
         docker exec komodo-sandbox-web-db-1 cp /var/lib/postgresql/data/pg_hba.conf /var/lib/postgresql/data/pg_hba.conf.backup
-        docker exec komodo-sandbox-web-db-1 bash -c "echo 'host all all 172.17.0.0/16 trust' >> /var/lib/postgresql/data/pg_hba.conf"
+        docker exec komodo-sandbox-web-db-1 bash -c "echo 'host all all 172.17.0.0/16 scram-sha-256' >> /var/lib/postgresql/data/pg_hba.conf"
         docker exec komodo-sandbox-web-db-1 psql -U dev -d komodo_dev -c "SELECT pg_reload_conf();"
-        Write-Host "✅ pg_hba.conf updated. Test dengan: node debug-db.js" -ForegroundColor Green
+        Write-Host "✅ pg_hba.conf updated. Test dengan: node scripts/debug/debug-db.js" -ForegroundColor Green
     }
     "2" {  
         Write-Host "Menjalankan Solusi 2..." -ForegroundColor Green
         docker exec komodo-sandbox-web-db-1 psql -U postgres -c "ALTER USER dev WITH PASSWORD 'devpass';"
-        Write-Host "✅ User password updated. Test dengan: node debug-db.js" -ForegroundColor Green
+        Write-Host "✅ User password updated. Test dengan: node scripts/debug/debug-db.js" -ForegroundColor Green
     }
     "3" {
         Write-Host "Lihat docker-compose.yml yang sudah diupdate untuk solusi lengkap." -ForegroundColor Green

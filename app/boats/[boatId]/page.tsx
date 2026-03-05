@@ -1,21 +1,9 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { toRenderableImageUrl } from "@/lib/image-url";
 import Image from "next/image";
 import Link from "next/link";
-import { Cormorant_Garamond, Manrope } from "next/font/google";
-
-const editorialSerif = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-lux-serif",
-});
-
-const modernSans = Manrope({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-lux-sans",
-});
 
 const signatureTypes = ["EXTERIOR", "EXTERIOR_2", "RELAX_AREA_2", "OTHER_1"] as const;
 const cabinImageOrder = ["MAIN_DISPLAY", "BEDROOM", "BATHROOM"] as const;
@@ -58,11 +46,79 @@ const formatImageType = (type: string) =>
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 
+type BoatPageProps = {
+  params: Promise<{ boatId: string }>;
+};
+
+export const revalidate = 1800;
+
+export async function generateStaticParams() {
+  try {
+    const boats = await prisma.boat.findMany({ select: { boatId: true } });
+    return boats.map((boat) => ({ boatId: boat.boatId }));
+  } catch (error) {
+    console.error("generateStaticParams(boats) failed:", error);
+    return [];
+  }
+}
+
+export async function generateMetadata({
+  params,
+}: BoatPageProps): Promise<Metadata> {
+  const { boatId } = await params;
+
+  try {
+    const boat = await prisma.boat.findUnique({
+      where: { boatId },
+      select: {
+        boatName: true,
+        boatDescription: true,
+        description: true,
+        destinations: true,
+        images: {
+          select: { publicUrl: true, driveUrl: true },
+          take: 1,
+        },
+      },
+    });
+
+    if (!boat) {
+      return {
+        title: "Boat Not Found | 12 Seas Alliance",
+        description: "The requested boat detail could not be found.",
+      };
+    }
+
+    const description =
+      boat.boatDescription ||
+      boat.description ||
+      `Luxury yacht charter to ${boat.destinations || "Komodo"} with 12 Seas Alliance.`;
+    const previewImage = toRenderableImageUrl(
+      boat.images[0]?.publicUrl,
+      boat.images[0]?.driveUrl
+    );
+
+    return {
+      title: `${boat.boatName} | 12 Seas Alliance`,
+      description,
+      openGraph: {
+        title: `${boat.boatName} | 12 Seas Alliance`,
+        description,
+        images: previewImage ? [{ url: previewImage }] : undefined,
+      },
+    };
+  } catch (error) {
+    console.error("generateMetadata(boats) failed:", error);
+    return {
+      title: "Boat Detail | 12 Seas Alliance",
+      description: "Luxury yacht charter details by 12 Seas Alliance.",
+    };
+  }
+}
+
 export default async function BoatDetailPage({
   params,
-}: {
-  params: Promise<{ boatId: string }>;
-}) {
+}: BoatPageProps) {
   const resolvedParams = await params;
   const { boatId } = resolvedParams;
 
@@ -127,10 +183,7 @@ export default async function BoatDetailPage({
     .slice(0, 6);
 
   return (
-    <main
-      className={`${editorialSerif.variable} ${modernSans.variable} relative overflow-hidden bg-[#f6f1e8] text-[#1f1b16]`}
-      style={{ fontFamily: "var(--font-lux-sans), sans-serif" }}
-    >
+    <main className="relative overflow-hidden bg-[#f6f1e8] text-[#1f1b16]">
       <div className="pointer-events-none absolute inset-0 opacity-80">
         <div className="absolute -top-40 left-[-15%] h-[420px] w-[420px] rounded-full bg-[#d8c5a6]/45 blur-3xl" />
         <div className="absolute right-[-15%] top-[26%] h-[380px] w-[380px] rounded-full bg-[#8b6d44]/18 blur-3xl" />
@@ -162,14 +215,15 @@ export default async function BoatDetailPage({
 
               <h1
                 className="text-5xl leading-[0.93] font-semibold md:text-7xl"
-                style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+                style={{ fontFamily: "var(--font-lux-serif), serif" }}
               >
                 {boat.boatName}
               </h1>
 
               <p className="mt-6 max-w-xl text-sm leading-7 text-white/90 md:text-base">
-                A private yachting retreat tailored for discerning guests, with layered spaces,
-                elevated hospitality, and cinematic Komodo routes.
+                {boat.boatDescription ||
+                  boat.description ||
+                  `${boat.boatName} is a premium yacht experience designed for curated journeys around ${boat.destinations || "Komodo"}.`}
               </p>
 
               <div className="mt-8 grid max-w-xl grid-cols-2 gap-3 text-xs md:grid-cols-4">
@@ -196,7 +250,7 @@ export default async function BoatDetailPage({
               <p className="text-[11px] uppercase tracking-[0.2em] text-[#d6c2a0]">Signature Charter</p>
               <p
                 className="mt-2 text-4xl font-semibold leading-none"
-                style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+                style={{ fontFamily: "var(--font-lux-serif), serif" }}
               >
                 {formatCurrency(boat.baseBookingPrice)}
               </p>
@@ -219,9 +273,19 @@ export default async function BoatDetailPage({
                 </div>
               </div>
 
-              <button className="mt-7 w-full rounded-full bg-[#dbc49d] px-5 py-3 text-sm font-bold tracking-[0.08em] text-[#1a140d] transition hover:bg-[#ead6b3]">
+              <Link
+                href={{
+                  pathname: "/inquiry",
+                  query: {
+                    entity: "boat",
+                    id: boat.boatId,
+                    name: boat.boatName,
+                  },
+                }}
+                className="mt-7 inline-flex w-full items-center justify-center rounded-full bg-[#dbc49d] px-5 py-3 text-sm font-bold tracking-[0.08em] text-[#1a140d] transition hover:bg-[#ead6b3]"
+              >
                 Reserve Private Charter
-              </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -233,7 +297,7 @@ export default async function BoatDetailPage({
             <p className="text-xs uppercase tracking-[0.2em] text-[#8c7657]">Signature Spaces</p>
             <h2
               className="mt-2 text-4xl leading-tight text-[#1f1a14] md:text-5xl"
-              style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+              style={{ fontFamily: "var(--font-lux-serif), serif" }}
             >
               Exterior and Lifestyle Gallery
             </h2>
@@ -262,7 +326,7 @@ export default async function BoatDetailPage({
                   <p className="text-[11px] uppercase tracking-[0.2em] text-[#e2cfb2]">{item.kicker}</p>
                   <h3
                     className="mt-2 text-3xl leading-tight font-medium"
-                    style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+                    style={{ fontFamily: "var(--font-lux-serif), serif" }}
                   >
                     {item.headline}
                   </h3>
@@ -283,7 +347,7 @@ export default async function BoatDetailPage({
           <p className="text-xs uppercase tracking-[0.2em] text-[#8c7657]">Voyage Narrative</p>
           <h2
             className="mt-2 text-4xl leading-tight text-[#1f1a14] md:text-5xl"
-            style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+            style={{ fontFamily: "var(--font-lux-serif), serif" }}
           >
             About {boat.boatName}
           </h2>
@@ -347,7 +411,7 @@ export default async function BoatDetailPage({
             <p className="text-xs uppercase tracking-[0.2em] text-[#8c7657]">Accommodation</p>
             <h2
               className="mt-2 text-4xl leading-tight text-[#1f1a14] md:text-5xl"
-              style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+              style={{ fontFamily: "var(--font-lux-serif), serif" }}
             >
               Curated Cabin Collection
             </h2>
@@ -385,7 +449,7 @@ export default async function BoatDetailPage({
                   <div className="p-6">
                     <h3
                       className="text-3xl leading-tight text-[#1f1a14]"
-                      style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+                      style={{ fontFamily: "var(--font-lux-serif), serif" }}
                     >
                       {cabin.cabinName}
                     </h3>

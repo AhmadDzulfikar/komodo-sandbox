@@ -1,21 +1,9 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { toRenderableImageUrl } from "@/lib/image-url";
 import Image from "next/image";
 import Link from "next/link";
-import { Cormorant_Garamond, Manrope } from "next/font/google";
-
-const editorialSerif = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-lux-serif",
-});
-
-const modernSans = Manrope({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-lux-sans",
-});
 
 const curatedTypes = ["MAIN_DISPLAY", "BEDROOM", "BATHROOM"] as const;
 const supplementalTypes = [
@@ -104,11 +92,80 @@ const amenityItems = (cabin: {
   return list;
 };
 
+type CabinPageProps = {
+  params: Promise<{ cabinId: string }>;
+};
+
+export const revalidate = 1800;
+
+export async function generateStaticParams() {
+  try {
+    const cabins = await prisma.cabin.findMany({ select: { cabinId: true } });
+    return cabins.map((cabin) => ({ cabinId: cabin.cabinId }));
+  } catch (error) {
+    console.error("generateStaticParams(cabins) failed:", error);
+    return [];
+  }
+}
+
+export async function generateMetadata({
+  params,
+}: CabinPageProps): Promise<Metadata> {
+  const { cabinId } = await params;
+
+  try {
+    const cabin = await prisma.cabin.findUnique({
+      where: { cabinId },
+      select: {
+        cabinName: true,
+        cabinDescription: true,
+        description: true,
+        cabinType: true,
+        boat: { select: { boatName: true } },
+        images: {
+          select: { publicUrl: true, driveUrl: true },
+          take: 1,
+        },
+      },
+    });
+
+    if (!cabin) {
+      return {
+        title: "Cabin Not Found | 12 Seas Alliance",
+        description: "The requested cabin detail could not be found.",
+      };
+    }
+
+    const description =
+      cabin.cabinDescription ||
+      cabin.description ||
+      `${cabin.cabinType || "Luxury"} cabin hosted by ${cabin.boat.boatName}.`;
+    const previewImage = toRenderableImageUrl(
+      cabin.images[0]?.publicUrl,
+      cabin.images[0]?.driveUrl
+    );
+
+    return {
+      title: `${cabin.cabinName} | ${cabin.boat.boatName}`,
+      description,
+      openGraph: {
+        title: `${cabin.cabinName} | ${cabin.boat.boatName}`,
+        description,
+        images: previewImage ? [{ url: previewImage }] : undefined,
+      },
+    };
+  } catch (error) {
+    console.error("generateMetadata(cabins) failed:", error);
+    return {
+      title: "Cabin Detail | 12 Seas Alliance",
+      description: "Luxury cabin detail page by 12 Seas Alliance.",
+    };
+  }
+}
+
 export default async function CabinDetailPage({
   params,
-}: {
-  params: Promise<{ cabinId: string }>;
-}) {
+}: CabinPageProps) {
   const resolvedParams = await params;
   const { cabinId } = resolvedParams;
 
@@ -182,10 +239,7 @@ export default async function CabinDetailPage({
   const amenities = amenityItems(cabin);
 
   return (
-    <main
-      className={`${editorialSerif.variable} ${modernSans.variable} relative overflow-hidden bg-[#f6f1e8] text-[#1f1b16]`}
-      style={{ fontFamily: "var(--font-lux-sans), sans-serif" }}
-    >
+    <main className="relative overflow-hidden bg-[#f6f1e8] text-[#1f1b16]">
       <div className="pointer-events-none absolute inset-0 opacity-80">
         <div className="absolute -top-40 right-[-16%] h-[460px] w-[460px] rounded-full bg-[#d8c5a6]/45 blur-3xl" />
         <div className="absolute left-[-14%] top-[30%] h-[340px] w-[340px] rounded-full bg-[#8b6d44]/16 blur-3xl" />
@@ -226,14 +280,15 @@ export default async function CabinDetailPage({
 
               <h1
                 className="text-5xl leading-[0.93] font-semibold md:text-7xl"
-                style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+                style={{ fontFamily: "var(--font-lux-serif), serif" }}
               >
                 {cabin.cabinName}
               </h1>
 
               <p className="mt-5 max-w-xl text-sm leading-7 text-white/90 md:text-base">
-                A private suite crafted for premium comfort, intimate sea views, and seamless
-                luxury charter journeys.
+                {cabin.cabinDescription ||
+                  cabin.description ||
+                  `${cabin.cabinName} on ${cabin.boat.boatName} offers private comfort and curated sea views.`}
               </p>
 
               <div className="mt-8 grid max-w-xl grid-cols-2 gap-3 text-xs md:grid-cols-4">
@@ -260,7 +315,7 @@ export default async function CabinDetailPage({
               <p className="text-[11px] uppercase tracking-[0.2em] text-[#d6c2a0]">Suite Rate</p>
               <p
                 className="mt-2 text-4xl font-semibold leading-none"
-                style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+                style={{ fontFamily: "var(--font-lux-serif), serif" }}
               >
                 {formatCurrency(cabin.price)}
               </p>
@@ -283,9 +338,20 @@ export default async function CabinDetailPage({
                 </div>
               </div>
 
-              <button className="mt-7 w-full rounded-full bg-[#dbc49d] px-5 py-3 text-sm font-bold tracking-[0.08em] text-[#1a140d] transition hover:bg-[#ead6b3]">
+              <Link
+                href={{
+                  pathname: "/inquiry",
+                  query: {
+                    entity: "cabin",
+                    id: cabin.cabinId,
+                    name: cabin.cabinName,
+                    boat: cabin.boat.boatName,
+                  },
+                }}
+                className="mt-7 inline-flex w-full items-center justify-center rounded-full bg-[#dbc49d] px-5 py-3 text-sm font-bold tracking-[0.08em] text-[#1a140d] transition hover:bg-[#ead6b3]"
+              >
                 Reserve This Cabin
-              </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -296,7 +362,7 @@ export default async function CabinDetailPage({
           <p className="text-xs uppercase tracking-[0.2em] text-[#8c7657]">Suite Showcase</p>
           <h2
             className="mt-2 text-4xl leading-tight text-[#1f1a14] md:text-5xl"
-            style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+            style={{ fontFamily: "var(--font-lux-serif), serif" }}
           >
             Signature Interior Gallery
           </h2>
@@ -328,7 +394,7 @@ export default async function CabinDetailPage({
                   <p className="text-[11px] uppercase tracking-[0.2em] text-[#e2cfb2]">{item.kicker}</p>
                   <h3
                     className="mt-2 text-3xl leading-tight font-medium"
-                    style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+                    style={{ fontFamily: "var(--font-lux-serif), serif" }}
                   >
                     {item.title}
                   </h3>
@@ -349,14 +415,14 @@ export default async function CabinDetailPage({
           <p className="text-xs uppercase tracking-[0.2em] text-[#8c7657]">Cabin Narrative</p>
           <h2
             className="mt-2 text-4xl leading-tight text-[#1f1a14] md:text-5xl"
-            style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+            style={{ fontFamily: "var(--font-lux-serif), serif" }}
           >
             About This Suite
           </h2>
           <p className="mt-5 text-[15px] leading-8 text-[#3f3324]">
             {cabin.cabinDescription ||
               cabin.description ||
-              "This suite is designed for guests who seek privacy, comfort, and curated luxury details throughout their voyage."}
+              `${cabin.cabinName} is tailored for guests who want privacy, comfort, and a premium stay on ${cabin.boat.boatName}.`}
           </p>
 
           <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -426,7 +492,7 @@ export default async function CabinDetailPage({
               <p className="text-xs uppercase tracking-[0.2em] text-[#8c7657]">More Suites</p>
               <h2
                 className="mt-2 text-4xl leading-tight text-[#1f1a14] md:text-5xl"
-                style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+                style={{ fontFamily: "var(--font-lux-serif), serif" }}
               >
                 Other Cabins on {cabin.boat.boatName}
               </h2>
@@ -472,7 +538,7 @@ export default async function CabinDetailPage({
                   <div className="p-6">
                     <h3
                       className="text-3xl leading-tight text-[#1f1a14]"
-                      style={{ fontFamily: "\"Morion\", var(--font-lux-serif), serif" }}
+                      style={{ fontFamily: "var(--font-lux-serif), serif" }}
                     >
                       {sibling.cabinName}
                     </h3>

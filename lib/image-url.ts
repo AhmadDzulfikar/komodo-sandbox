@@ -1,5 +1,19 @@
+/**
+ * n8n historical mismatch:
+ * - actual R2 public prefix: `https://12seasalliance.uk/=boats/...`
+ * - some DB rows were written as `https://12seasalliance.uk/boats/...`
+ *
+ * We normalize only this known mismatch until all legacy rows are corrected
+ * in the source data pipeline.
+ */
 const BOAT_PATH_WRONG = "12seasalliance.uk/boats/";
 const BOAT_PATH_FIXED = "12seasalliance.uk/=boats/";
+
+const DRIVE_FALLBACK_ENV = "ENABLE_DRIVE_IMAGE_FALLBACK";
+
+function isDriveFallbackEnabled() {
+  return process.env[DRIVE_FALLBACK_ENV] === "true";
+}
 
 function extractGoogleDriveFileId(url: string): string | null {
   const fromPath = url.match(/\/file\/d\/([^/]+)/);
@@ -27,7 +41,13 @@ export function normalizeDriveImageUrl(url?: string | null): string | undefined 
   if (!trimmed) return undefined;
 
   if (!trimmed.includes("drive.google.com")) {
-    return trimmed;
+    return undefined;
+  }
+
+  // Drive thumbnails are unreliable for private files.
+  // Keep this fallback opt-in for local debugging only.
+  if (!isDriveFallbackEnabled()) {
+    return undefined;
   }
 
   const fileId = extractGoogleDriveFileId(trimmed);

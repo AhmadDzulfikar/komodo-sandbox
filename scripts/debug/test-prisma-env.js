@@ -16,7 +16,7 @@ console.log("3. PWD:", process.cwd());
 console.log("\n4. Testing Prisma config loading...");
 try {
     // Import Prisma config
-    const configModule = await import('./prisma.config.ts');
+    const configModule = await import('../../prisma.config.ts');
     console.log("✅ Prisma config loaded successfully");
     console.log("Config:", configModule.default);
 } catch (error) {
