@@ -1,10 +1,21 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { luxurySans, luxurySerif } from "@/lib/fonts";
 
 export const metadata: Metadata = {
-  title: "12 Seas Alliance",
+  title: {
+    default: "12 Seas Alliance",
+    template: "%s | 12 Seas Alliance",
+  },
   description: "Luxury yacht and cabin booking platform by 12 Seas Alliance.",
+  applicationName: "12 Seas Alliance",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#f6f1e8",
+  colorScheme: "light",
 };
 
 export default function RootLayout({
@@ -14,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${luxurySans.variable} ${luxurySerif.variable} antialiased`}>
+      <body className="antialiased">
         {children}
       </body>
     </html>

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { formatCurrency } from "@/lib/currency";
 import { toRenderableImageUrl } from "@/lib/image-url";
+import { getBoatPageData } from "@/lib/listing-data";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -34,11 +36,6 @@ const signatureMeta: Record<
   },
 };
 
-const formatCurrency = (value?: { toString(): string } | null) => {
-  if (!value) return "On request";
-  return `Rp ${value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
-};
-
 const formatImageType = (type: string) =>
   type
     .toLowerCase()
@@ -68,19 +65,7 @@ export async function generateMetadata({
   const { boatId } = await params;
 
   try {
-    const boat = await prisma.boat.findUnique({
-      where: { boatId },
-      select: {
-        boatName: true,
-        boatDescription: true,
-        description: true,
-        destinations: true,
-        images: {
-          select: { publicUrl: true, driveUrl: true },
-          take: 1,
-        },
-      },
-    });
+    const boat = await getBoatPageData(boatId);
 
     if (!boat) {
       return {
@@ -122,17 +107,7 @@ export default async function BoatDetailPage({
   const resolvedParams = await params;
   const { boatId } = resolvedParams;
 
-  const boat = await prisma.boat.findUnique({
-    where: { boatId },
-    include: {
-      images: true,
-      cabins: {
-        include: {
-          images: true,
-        },
-      },
-    },
-  });
+  const boat = await getBoatPageData(boatId);
 
   if (!boat) {
     notFound();
@@ -183,7 +158,7 @@ export default async function BoatDetailPage({
     .slice(0, 6);
 
   return (
-    <main className="relative overflow-hidden bg-[#f6f1e8] text-[#1f1b16]">
+    <main className="relative overflow-hidden bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0 opacity-80">
         <div className="absolute -top-40 left-[-15%] h-[420px] w-[420px] rounded-full bg-[#d8c5a6]/45 blur-3xl" />
         <div className="absolute right-[-15%] top-[26%] h-[380px] w-[380px] rounded-full bg-[#8b6d44]/18 blur-3xl" />

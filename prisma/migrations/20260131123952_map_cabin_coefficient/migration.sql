@@ -1,9 +1,3 @@
-/*
-  Warnings:
-
-  - You are about to drop the column `coefficient` on the `cabins` table. All the data in the column will be lost.
-
-*/
--- AlterTable
-ALTER TABLE "cabins" DROP COLUMN "coefficient",
-ADD COLUMN     "coeficient" DECIMAL(10,4);
+-- Historical no-op.
+-- The schema baseline now uses `coefficient` consistently, so this migration
+-- intentionally performs no changes on fresh databases.

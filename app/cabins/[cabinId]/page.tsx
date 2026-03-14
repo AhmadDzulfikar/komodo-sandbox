@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { formatCurrency } from "@/lib/currency";
 import { toRenderableImageUrl } from "@/lib/image-url";
+import { getCabinPageData } from "@/lib/listing-data";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -69,11 +71,6 @@ const imageMeta: Record<string, { kicker: string; title: string; subtitle: strin
   },
 };
 
-const formatCurrency = (value?: { toString(): string } | null) => {
-  if (!value) return "On request";
-  return `Rp ${value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
-};
-
 const amenityItems = (cabin: {
   largeBed: boolean;
   seaview: boolean;
@@ -114,20 +111,8 @@ export async function generateMetadata({
   const { cabinId } = await params;
 
   try {
-    const cabin = await prisma.cabin.findUnique({
-      where: { cabinId },
-      select: {
-        cabinName: true,
-        cabinDescription: true,
-        description: true,
-        cabinType: true,
-        boat: { select: { boatName: true } },
-        images: {
-          select: { publicUrl: true, driveUrl: true },
-          take: 1,
-        },
-      },
-    });
+    const pageData = await getCabinPageData(cabinId);
+    const cabin = pageData?.cabin;
 
     if (!cabin) {
       return {
@@ -169,21 +154,8 @@ export default async function CabinDetailPage({
   const resolvedParams = await params;
   const { cabinId } = resolvedParams;
 
-  const cabin = await prisma.cabin.findUnique({
-    where: { cabinId },
-    include: {
-      images: true,
-      boat: {
-        include: {
-          cabins: {
-            include: {
-              images: true,
-            },
-          },
-        },
-      },
-    },
-  });
+  const pageData = await getCabinPageData(cabinId);
+  const cabin = pageData?.cabin;
 
   if (!cabin) {
     notFound();
@@ -225,7 +197,7 @@ export default async function CabinDetailPage({
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
-  const otherCabins = cabin.boat.cabins.filter((item) => item.cabinId !== cabin.cabinId).slice(0, 3);
+  const otherCabins = pageData?.siblingCabins ?? [];
 
   const getSiblingImage = (sibling: (typeof otherCabins)[number]) => {
     const preferred = curatedTypes
@@ -237,9 +209,10 @@ export default async function CabinDetailPage({
   };
 
   const amenities = amenityItems(cabin);
+  const displayFacilities = cabin.cabinDisplayFacilities;
 
   return (
-    <main className="relative overflow-hidden bg-[#f6f1e8] text-[#1f1b16]">
+    <main className="relative overflow-hidden bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0 opacity-80">
         <div className="absolute -top-40 right-[-16%] h-[460px] w-[460px] rounded-full bg-[#d8c5a6]/45 blur-3xl" />
         <div className="absolute left-[-14%] top-[30%] h-[340px] w-[340px] rounded-full bg-[#8b6d44]/16 blur-3xl" />
@@ -327,10 +300,6 @@ export default async function CabinDetailPage({
                 <div className="flex items-center justify-between">
                   <span className="text-white/65">Additional Pax</span>
                   <span className="font-medium">{formatCurrency(cabin.additionalPaxPrice)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/65">Margin</span>
-                  <span className="font-medium">{cabin.margin?.toString() || "0"}%</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-white/65">Hosted by</span>
@@ -424,6 +393,19 @@ export default async function CabinDetailPage({
               cabin.description ||
               `${cabin.cabinName} is tailored for guests who want privacy, comfort, and a premium stay on ${cabin.boat.boatName}.`}
           </p>
+
+          {displayFacilities.length > 0 ? (
+            <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {displayFacilities.map((facility, index) => (
+                <div
+                  key={`${facility}-${index}`}
+                  className="rounded-2xl border border-[#dbc8aa] bg-[#f9f2e8] px-4 py-3 text-sm text-[#4f3f2b]"
+                >
+                  {facility}
+                </div>
+              ))}
+            </div>
+          ) : null}
 
           <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-[#dbc8aa] bg-[#f9f2e8] px-4 py-3 text-sm text-[#4f3f2b]">

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { formatCurrency } from "@/lib/currency";
 import { toRenderableImageUrl } from "@/lib/image-url";
 
 export const metadata: Metadata = {
@@ -35,16 +37,79 @@ async function getFeaturedBoats() {
   }
 }
 
-const formatCurrency = (value?: { toString(): string } | null) => {
-  if (!value) return "On request";
-  return `Rp ${value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
-};
+function renderFeaturedBoatCards(
+  boats: Awaited<ReturnType<typeof getFeaturedBoats>>
+): ReactNode {
+  try {
+    return boats.map((boat) => {
+      const image = boat.images.find((img) => img.type === "MAIN_DISPLAY") || boat.images[0];
+      const imageUrl = toRenderableImageUrl(image?.publicUrl, image?.driveUrl);
+
+      return (
+        <Link
+          key={boat.boatId}
+          href={`/boats/${boat.boatId}`}
+          className="group overflow-hidden rounded-[28px] border border-[#dcc9ab] bg-[#f7eee2] shadow-[0_24px_65px_-42px_rgba(30,23,16,0.75)] transition hover:-translate-y-1"
+        >
+          <div className="relative h-64 overflow-hidden bg-[#d8c5a6]">
+            {imageUrl ? (
+              <Image
+                src={imageUrl}
+                alt={boat.boatName}
+                fill
+                className="object-cover transition duration-700 group-hover:scale-[1.04]"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-[#705c43]">
+                Image coming soon
+              </div>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/62 via-transparent to-transparent" />
+          </div>
+
+          <div className="p-6">
+            <h3
+              className="text-3xl leading-tight text-[#1f1a14]"
+              style={{ fontFamily: "var(--font-lux-serif), serif" }}
+            >
+              {boat.boatName}
+            </h3>
+
+            <div className="mt-3 text-sm text-[#5e4b34]">
+              {boat.category || "Luxury Yacht"} - {boat.destinations || "Komodo"}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between text-sm text-[#5e4b34]">
+              <span>Starting from</span>
+              <span className="font-semibold text-[#2f2417]">
+                {formatCurrency(boat.baseBookingPrice)}
+              </span>
+            </div>
+
+            <div className="mt-5 inline-flex items-center gap-2 text-xs font-bold tracking-[0.14em] uppercase text-[#6f5739]">
+              View Boat Detail
+              <span className="transition group-hover:translate-x-1">&gt;</span>
+            </div>
+          </div>
+        </Link>
+      );
+    });
+  } catch (error) {
+    console.error("Homepage boat card render failed:", error);
+
+    return (
+      <div className="rounded-[26px] border border-[#d6c2a2] bg-[#f3e9db] p-12 text-center text-[#6e5a40] md:col-span-2 xl:col-span-3">
+        Featured boats are temporarily unavailable. Please try again shortly.
+      </div>
+    );
+  }
+}
 
 export default async function HomePage() {
   const boats = await getFeaturedBoats();
 
   return (
-    <main className="min-h-screen bg-[#f6f1e8] text-[#1f1b16]">
+    <main className="min-h-screen bg-background text-foreground">
       <section className="relative overflow-hidden px-4 pb-16 pt-20 md:px-8 md:pt-28">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -top-24 left-[-12%] h-[360px] w-[360px] rounded-full bg-[#d8c5a6]/45 blur-3xl" />
@@ -99,59 +164,7 @@ export default async function HomePage() {
 
           {boats.length > 0 ? (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {boats.map((boat) => {
-                const image = boat.images.find((img) => img.type === "MAIN_DISPLAY") || boat.images[0];
-                const imageUrl = toRenderableImageUrl(image?.publicUrl, image?.driveUrl);
-
-                return (
-                  <Link
-                    key={boat.boatId}
-                    href={`/boats/${boat.boatId}`}
-                    className="group overflow-hidden rounded-[28px] border border-[#dcc9ab] bg-[#f7eee2] shadow-[0_24px_65px_-42px_rgba(30,23,16,0.75)] transition hover:-translate-y-1"
-                  >
-                    <div className="relative h-64 overflow-hidden bg-[#d8c5a6]">
-                      {imageUrl ? (
-                        <Image
-                          src={imageUrl}
-                          alt={boat.boatName}
-                          fill
-                          className="object-cover transition duration-700 group-hover:scale-[1.04]"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-sm text-[#705c43]">
-                          Image coming soon
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/62 via-transparent to-transparent" />
-                    </div>
-
-                    <div className="p-6">
-                    <h3
-                      className="text-3xl leading-tight text-[#1f1a14]"
-                      style={{ fontFamily: "var(--font-lux-serif), serif" }}
-                    >
-                      {boat.boatName}
-                      </h3>
-
-                      <div className="mt-3 text-sm text-[#5e4b34]">
-                        {boat.category || "Luxury Yacht"} - {boat.destinations || "Komodo"}
-                      </div>
-
-                      <div className="mt-4 flex items-center justify-between text-sm text-[#5e4b34]">
-                        <span>Starting from</span>
-                        <span className="font-semibold text-[#2f2417]">
-                          {formatCurrency(boat.baseBookingPrice)}
-                        </span>
-                      </div>
-
-                      <div className="mt-5 inline-flex items-center gap-2 text-xs font-bold tracking-[0.14em] uppercase text-[#6f5739]">
-                        View Boat Detail
-                        <span className="transition group-hover:translate-x-1">&gt;</span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
+              {renderFeaturedBoatCards(boats)}
             </div>
           ) : (
             <div className="rounded-[26px] border border-[#d6c2a2] bg-[#f3e9db] p-12 text-center text-[#6e5a40]">

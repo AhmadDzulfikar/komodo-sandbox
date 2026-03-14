@@ -1,13 +1,13 @@
-/**
- * n8n historical mismatch:
- * - actual R2 public prefix: `https://12seasalliance.uk/=boats/...`
- * - some DB rows were written as `https://12seasalliance.uk/boats/...`
- *
- * We normalize only this known mismatch until all legacy rows are corrected
- * in the source data pipeline.
- */
-const BOAT_PATH_WRONG = "12seasalliance.uk/boats/";
-const BOAT_PATH_FIXED = "12seasalliance.uk/=boats/";
+const CDN_PREFIX_NORMALIZATIONS = [
+  {
+    from: "12seasalliance.uk/boats/",
+    to: "12seasalliance.uk/=boats/",
+  },
+  {
+    from: "12seasalliance.uk/=cabins/",
+    to: "12seasalliance.uk/cabins/",
+  },
+] as const;
 
 const DRIVE_FALLBACK_ENV = "ENABLE_DRIVE_IMAGE_FALLBACK";
 
@@ -32,7 +32,9 @@ export function normalizePublicImageUrl(url?: string | null): string | undefined
   const trimmed = url.trim();
   if (!trimmed) return undefined;
 
-  return trimmed.replace(BOAT_PATH_WRONG, BOAT_PATH_FIXED);
+  return CDN_PREFIX_NORMALIZATIONS.reduce((normalizedUrl, rule) => {
+    return normalizedUrl.replace(rule.from, rule.to);
+  }, trimmed);
 }
 
 export function normalizeDriveImageUrl(url?: string | null): string | undefined {
